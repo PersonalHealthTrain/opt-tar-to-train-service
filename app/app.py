@@ -79,7 +79,7 @@ class TrainArchiveJob(db.Model):
     def to_filepath(self):
         return os.path.abspath(os.path.join(self.job_directory, str(self.id) + ".tar"))
 
-
+db.create_all()
 ################################################################
 # Database functions
 def create_job(filename):
@@ -188,17 +188,13 @@ scheduler.start()
 atexit.register(lambda: scheduler.shutdown())
 
 scheduler.add_job(
-    func=job_add_dockerfile(),
+    func=job_add_dockerfile,
     trigger=IntervalTrigger(seconds=1),
     id='add_dockerfile',
     name='Loads the content from the submitted archive file',
     replace_existing=True)
 
-
-
-
 if __name__ == '__main__':
 
     ensure_dir(TAR_FILEPATH)
-    db.create_all()
     app.run()
