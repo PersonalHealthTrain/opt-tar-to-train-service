@@ -98,6 +98,10 @@ def create_job(filename):
     if filename.endswith('.tar'):
         filename = '.'.join(filename.split('.')[:-1])
 
+    # Append train_ to the name, as the naming conventions for train requires
+    if not filename.startswith("train_"):
+        filename = "train_" + filename
+
     # Create a new trainArchiveJob
     job = TrainArchiveJob(
         job_directory=TAR_FILEPATH,
