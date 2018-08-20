@@ -213,7 +213,8 @@ def job_build_push():
                 fileobj=f,
                 custom_context=True,
                 tag=repository)
-            docker_client.images.push(repository)
+        docker_client.images.push(repository)
+        docker_client.images.remove(repository)
         print("Push successful")
     return process_job(func, JobState.DOCKERFILE_ADDED, JobState.TRAIN_BEING_CREATED, JobState.TRAIN_SUBMITTED)
 
@@ -245,4 +246,4 @@ scheduler.add_job(
 if __name__ == '__main__':
 
     ensure_dir(TAR_FILEPATH)
-    app.run(host='0.0.0.0', port=5000)
+    app.run(host='0.0.0.0', port=8080)

@@ -8,4 +8,4 @@ RUN pip install --no-cache-dir -r /opt/requirements.txt && \
 
 WORKDIR /opt/app
 ENTRYPOINT [ "python", "app.py" ]
-EXPOSE 5000
+EXPOSE 8080
