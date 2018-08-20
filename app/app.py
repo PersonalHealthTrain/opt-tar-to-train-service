@@ -1,6 +1,6 @@
 from flask import Flask, Response
 from flask_sqlalchemy import SQLAlchemy
-from flask import request, render_template, jsonify, flash, redirect, url_for, send_file
+from flask import request
 from sqlalchemy.orm.attributes import flag_modified
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
@@ -21,6 +21,12 @@ fatal_if(
     not os.path.exists(DOCKER_SOCKET_PATH),
     'No Docker socket found at {}'.format(DOCKER_SOCKET_PATH), 1)
 
+# The registry key
+URI_REGISTRY_KEY = 'URI_DOCKER_REGISTRY'
+fatal_if(
+    not URI_REGISTRY_KEY in os.environ,
+    'Key {} not found nin environment'.format(URI_REGISTRY_KEY), 2)
+URI_REGISTRY = os.environ[URI_REGISTRY_KEY]
 
 ###############################################################
 # Constants
@@ -79,11 +85,18 @@ class TrainArchiveJob(db.Model):
     def to_filepath(self):
         return os.path.abspath(os.path.join(self.job_directory, str(self.id) + ".tar"))
 
+
 db.create_all()
+
+
 ################################################################
 # Database functions
 def create_job(filename):
     """Creates a new job and returns it"""
+
+    # Split the .tar ending from the file
+    if filename.endswith('.tar'):
+        filename = '.'.join(filename.split('.')[:-1])
 
     # Create a new trainArchiveJob
     job = TrainArchiveJob(
@@ -180,6 +193,24 @@ def job_add_dockerfile():
     return process_job(func, JobState.TAR_SAVED, JobState.DOCKERFILE_BEING_ADDED, JobState.DOCKERFILE_ADDED)
 
 
+def job_build_push():
+    """
+    build each train job and pushes it to the registry
+    :return:
+    """
+    def func(job: TrainArchiveJob):
+        # Open the Tarfile of this job and use it as the build context for the generated Docker archive
+        repository = '{}/{}:immediate'.format(URI_REGISTRY, job.file_name)
+        print("Pusing to repository: {}".format(repository))
+        with open(job.to_filepath(), 'r') as f:
+            docker_client.images.build(
+                fileobj=f,
+                custom_context=True,
+                tag=repository)
+            docker_client.images.push(repository)
+    return process_job(func, JobState.DOCKERFILE_ADDED, JobState.TRAIN_BEING_CREATED, JobState.TRAIN_SUBMITTED)
+
+
 ##################################################################
 # Configure the scheduler
 ##################################################################
@@ -194,7 +225,17 @@ scheduler.add_job(
     name='Loads the content from the submitted archive file',
     replace_existing=True)
 
+scheduler.add_job(
+
+    func=job_build_push,
+    trigger=IntervalTrigger(seconds=1),
+    id='build_push',
+    name='Loads the content from the submitted archive file',
+    replace_existing=True
+)
+
+
 if __name__ == '__main__':
 
     ensure_dir(TAR_FILEPATH)
-    app.run()
+    app.run(host='0.0.0.0', port=5000)
