@@ -187,8 +187,10 @@ def job_add_dockerfile():
 
         # Add the Dockerfile to the archive. Note that we need to open specify the 'append: a' mode
         # for opening the file
+        print("Add Dockerfile to Job: {}".format(job.id))
         with tarfile.open(job.to_filepath(), 'a') as tar:
             tar.add(DOCKERFILE, arcname='Dockerfile')
+        print("Dockerfile has been added to job to Job: {}".format(job.id))
 
     return process_job(func, JobState.TAR_SAVED, JobState.DOCKERFILE_BEING_ADDED, JobState.DOCKERFILE_ADDED)
 
@@ -201,13 +203,14 @@ def job_build_push():
     def func(job: TrainArchiveJob):
         # Open the Tarfile of this job and use it as the build context for the generated Docker archive
         repository = '{}/{}:immediate'.format(URI_REGISTRY, job.file_name)
-        print("Pusing to repository: {}".format(repository))
+        print("Pushing to repository: {}".format(repository))
         with open(job.to_filepath(), 'r') as f:
             docker_client.images.build(
                 fileobj=f,
                 custom_context=True,
                 tag=repository)
             docker_client.images.push(repository)
+        print("Push successful")
     return process_job(func, JobState.DOCKERFILE_ADDED, JobState.TRAIN_BEING_CREATED, JobState.TRAIN_SUBMITTED)
 
 
@@ -222,7 +225,7 @@ scheduler.add_job(
     func=job_add_dockerfile,
     trigger=IntervalTrigger(seconds=1),
     id='add_dockerfile',
-    name='Loads the content from the submitted archive file',
+    name='Adds Dockerfile to the tar archive',
     replace_existing=True)
 
 scheduler.add_job(
@@ -230,7 +233,7 @@ scheduler.add_job(
     func=job_build_push,
     trigger=IntervalTrigger(seconds=1),
     id='build_push',
-    name='Loads the content from the submitted archive file',
+    name='builds and pushes the image',
     replace_existing=True
 )
 
