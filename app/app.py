@@ -95,7 +95,7 @@ db.create_all()
 def create_job(filename):
     """Creates a new job and returns it"""
 
-    allowed_characters = string.ascii_lowercase + string.digits + ['_', '-']
+    allowed_characters = string.ascii_lowercase + string.digits + '_-'
     # First, make the filename secure
     filename = secure_filename(filename)
 
