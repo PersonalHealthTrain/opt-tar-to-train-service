@@ -11,6 +11,7 @@ import enum
 import os
 from utils import fatal_if, POST_ONLY, allowed_file, ensure_dir
 from werkzeug.utils import secure_filename
+import string
 
 ###############################################################
 # Preflight checks
@@ -94,6 +95,22 @@ db.create_all()
 def create_job(filename):
     """Creates a new job and returns it"""
 
+    allowed_characters = string.ascii_lowercase + string.digits + ['_', '-']
+    # First, make the filename secure
+    filename = secure_filename(filename)
+
+    # Now everything has to be lowercase
+    filename = filename.lower()
+
+    # All non allowed characters are replaced by _
+    problem_chars = [c for c in filename if c not in allowed_characters]
+    for p in problem_chars:
+        filename = filename.replace(p, '_')
+
+    # If the filename now ends with _, just append s
+    if filename.endswith('_'):
+        filename = filename + 's'
+
     # Split the .tar ending from the file
     if filename.endswith('.tar'):
         filename = '.'.join(filename.split('.')[:-1])
@@ -153,10 +170,9 @@ def index():
             return failure("No file was selected")
 
         if allowed_file(file.filename, 'tar'):
-            filename = secure_filename(file.filename)
 
             # Create a new job for this tar file
-            job = create_job(filename)
+            job = create_job(file.filename)
             file.save(job.to_filepath())
 
             # Update the job now that the tarfile has been saved
