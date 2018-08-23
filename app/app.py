@@ -16,7 +16,7 @@ import string
 ###############################################################
 # Preflight checks
 ################################################################
-DOCKER_SOCKET_PATH = '/run/docker.sock'
+DOCKER_SOCKET_PATH = '/var/run/docker.sock'
 
 fatal_if(
     not os.path.exists(DOCKER_SOCKET_PATH),
@@ -173,7 +173,9 @@ def index():
 
             # Create a new job for this tar file
             job = create_job(file.filename)
-            file.save(job.to_filepath())
+            filepath = job.to_filepath()
+            print("Saving to: {}".format(filepath))
+            file.save(filepath)
 
             # Update the job now that the tarfile has been saved
             update_job_state(job, state=JobState.TAR_SAVED)
@@ -223,14 +225,14 @@ def job_build_push():
     def func(job: TrainArchiveJob):
         # Open the Tarfile of this job and use it as the build context for the generated Docker archive
         repository = '{}/{}:immediate'.format(URI_REGISTRY, job.file_name)
-        print("Pushing to repository: {}".format(repository))
         with open(job.to_filepath(), 'r') as f:
+            print("Buildin Image")
             docker_client.images.build(
                 fileobj=f,
                 custom_context=True,
                 tag=repository)
         docker_client.images.push(repository)
-        docker_client.images.remove(repository)
+        print("Pushing to repository: {}".format(repository))
         print("Push successful")
     return process_job(func, JobState.DOCKERFILE_ADDED, JobState.TRAIN_BEING_CREATED, JobState.TRAIN_SUBMITTED)
 
@@ -262,4 +264,4 @@ scheduler.add_job(
 if __name__ == '__main__':
 
     ensure_dir(TAR_FILEPATH)
-    app.run(host='0.0.0.0', port=8080)
+    app.run(host='0.0.0.0', port=9090)
