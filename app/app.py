@@ -186,26 +186,32 @@ def index():
 ##################################################################
 # Define the background jobs that this Flask application performs
 ##################################################################
-def process_job(func, from_state, while_state, to_state):
+def process_jobs(jobs):
 
-    # First, select the first job with the property
-    job = db.session.query(TrainArchiveJob).filter_by(state=from_state).first()
-    if job:
-        # Update the job state to the processing state
-        update_job_state(job, while_state)
+    for job in jobs:
+        func = job[0]
+        from_state = job[1]
+        while_state = job[2]
+        to_state = job[3]
 
-        # apply the processor function to the job
-        func(job)
+        # First, select the first job with the property
+        job = db.session.query(TrainArchiveJob).filter_by(state=from_state).first()
+        if job:
+            # Update the job state to the processing state
+            update_job_state(job, while_state)
+    
+            # apply the processor function to the job
+            func(job)
+    
+            # update the job state to the to_state
+            update_job_state(job, to_state)
 
-        # update the job state to the to_state
-        update_job_state(job, to_state)
 
-
-def job_add_dockerfile():
+def background_job():
     """
     Adds the Dockerfile to the next tar file
     """
-    def func(job: TrainArchiveJob):
+    def func1(job: TrainArchiveJob):
 
         # Add the Dockerfile to the archive. Note that we need to open specify the 'append: a' mode
         # for opening the file
@@ -213,16 +219,8 @@ def job_add_dockerfile():
         with tarfile.open(job.to_filepath(), 'a') as tar:
             tar.add(DOCKERFILE, arcname='Dockerfile')
         print("Dockerfile has been added to job to Job: {}".format(job.id))
-
-    return process_job(func, JobState.TAR_SAVED, JobState.DOCKERFILE_BEING_ADDED, JobState.DOCKERFILE_ADDED)
-
-
-def job_build_push():
-    """
-    build each train job and pushes it to the registry
-    :return:
-    """
-    def func(job: TrainArchiveJob):
+    
+    def func2(job: TrainArchiveJob):
         # Open the Tarfile of this job and use it as the build context for the generated Docker archive
         repository = '{}/{}:immediate'.format(URI_REGISTRY, job.file_name)
         with open(job.to_filepath(), 'r') as f:
@@ -234,7 +232,10 @@ def job_build_push():
         docker_client.images.push(repository)
         print("Pushing to repository: {}".format(repository))
         print("Push successful")
-    return process_job(func, JobState.DOCKERFILE_ADDED, JobState.TRAIN_BEING_CREATED, JobState.TRAIN_SUBMITTED)
+
+    jobs = [ (func1, JobState.TAR_SAVED, JobState.DOCKERFILE_BEING_ADDED, JobState.DOCKERFILE_ADDED),
+             (func2, JobState.DOCKERFILE_ADDED, JobState.TRAIN_BEING_CREATED, JobState.TRAIN_SUBMITTED) ]
+    process_jobs(jobs)
 
 
 ##################################################################
@@ -245,23 +246,15 @@ scheduler.start()
 atexit.register(lambda: scheduler.shutdown())
 
 scheduler.add_job(
-    func=job_add_dockerfile,
+    func=background_job,
     trigger=IntervalTrigger(seconds=1),
     id='add_dockerfile',
     name='Adds Dockerfile to the tar archive',
     replace_existing=True)
-
-scheduler.add_job(
-
-    func=job_build_push,
-    trigger=IntervalTrigger(seconds=1),
-    id='build_push',
-    name='builds and pushes the image',
-    replace_existing=True
-)
 
 
 if __name__ == '__main__':
 
     ensure_dir(TAR_FILEPATH)
     app.run(host='0.0.0.0', port=9090)
+
