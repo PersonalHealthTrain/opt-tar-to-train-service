@@ -188,11 +188,11 @@ def index():
 ##################################################################
 def process_jobs(jobs):
 
-    for job in jobs:
-        func = job[0]
-        from_state = job[1]
-        while_state = job[2]
-        to_state = job[3]
+    for job_item in jobs:
+        func = job_item[0]
+        from_state = job_item[1]
+        while_state = job_item[2]
+        to_state = job_item[3]
 
         # First, select the first job with the property
         job = db.session.query(TrainArchiveJob).filter_by(state=from_state).first()
